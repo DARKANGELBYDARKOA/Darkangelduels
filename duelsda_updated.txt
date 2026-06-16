@@ -1,0 +1,827 @@
+repeat task.wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local HS = game:GetService("HttpService")
+local LP = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local galaxyOn = false
+local defBrightness, defClock, defAmbient = Lighting.Brightness, Lighting.ClockTime, Lighting.OutdoorAmbient
+
+local removedAccessories = {}
+
+local function removeCharacterAccessories()
+    local char = LP.Character
+    if not char then return end
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Accessory") or child:IsA("Hat") or (child:IsA("Model") and child:FindFirstChild("Handle")) then
+            table.insert(removedAccessories, {parent = child.Parent, acc = child})
+            child.Parent = nil
+        end
+    end
+end
+
+local function restoreAccessories()
+    for _, item in ipairs(removedAccessories) do
+        if item.acc and not item.acc.Parent then
+            item.acc.Parent = item.parent
+        end
+    end
+    removedAccessories = {}
+end
+
+local function updateGalaxy()
+    if galaxyOn then
+        local sky = Lighting:FindFirstChild("daGalaxySky") or Instance.new("Sky")
+        sky.Name = "daGalaxySky"
+        sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt, sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp =
+            "rbxassetid://90008389385236","rbxassetid://135894687762727","rbxassetid://135894687762727",
+            "rbxassetid://135894687762727","rbxassetid://135894687762727","rbxassetid://135894687762727"
+        sky.Parent = Lighting
+        Lighting.Brightness, Lighting.ClockTime, Lighting.ExposureCompensation = 0, 0, -2
+        Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+    else
+        if Lighting:FindFirstChild("daGalaxySky") then Lighting.daGalaxySky:Destroy() end
+        Lighting.Brightness, Lighting.ClockTime, Lighting.ExposureCompensation = defBrightness, defClock, 0
+        Lighting.OutdoorAmbient = defAmbient
+    end
+end
+
+local function toggleGalaxyMode()
+    galaxyOn = not galaxyOn
+    updateGalaxy()
+end
+
+local function safeWritefile(path, data) if type(writefile) == "function" then pcall(writefile, path, data) end end
+local function safeReadfile(path) if type(readfile) == "function" then local ok, data = pcall(readfile, path) return ok and data or nil end return nil end
+local function safeIsfile(path) if type(isfile) == "function" then local ok, res = pcall(isfile, path) return ok and res end return false end
+local function safeSetfpscap(v) if type(setfpscap) == "function" then pcall(setfpscap, v) end end
+local function safeSethiddenproperty(obj, prop, val) if type(sethiddenproperty) == "function" then pcall(sethiddenproperty, obj, prop, val) end end
+
+local S = {
+    NS = 60, CS = 30, LS = 10.1, LS2 = 10,
+    GoingSpeed = 55, StealSpeed = 29,
+    speedMode = false, laggerMode = 0,
+    antiRagdollEnabled = false, infJumpEnabled = false, medusaCounterEnabled = false,
+    medusaDebounce = false, medusaLastUsed = 0, medusaConns = {}, MEDUSA_COOLDOWN = 25,
+    unwalkEnabled = false,
+    autoLeftEnabled = false, autoRightEnabled = false,
+    autoLeftSetVisual = nil, autoRightSetVisual = nil,
+    _btnAAL = nil, _bsAAL = nil, _l1AAL = nil, _l2AAL = nil,
+    _btnAAR = nil, _bsAAR = nil, _l1AAR = nil, _l2AAR = nil,
+    _btnBAT = nil, _bsBAT = nil, _l1BAT = nil, _l2BAT = nil,
+    _setPButtonActive = nil, speedCounterLabel = nil,
+    batAimbotEnabled = false, batAimbotSetVisual = nil, batAimbotConn = nil,
+    batCounterEnabled = false, batCounterConn = nil, batCounterDebounce = false,
+    setBatCounterVisual = nil,
+    fpsBoostEnabled = false,
+    lockUIEnabled = false,
+    mainMenuFrame = nil, miniToggleButton = nil, floatingPanelFrame = nil, floatingPanelGui = nil,
+    _noclipTimer = 0, _fpsCount = 0, _lastFpsTime = tick(), currentFPS = 0,
+    alConn = nil, arConn = nil, alPhase = 1, arPhase = 1,
+    progressFill = nil, progressPct = nil, progressBarFrame = nil, topBarHUD = nil,
+    stealActive = false,
+    setLaggerVisual = nil, speedClk = nil, setFpsVisual = nil, setInfJumpVisual = nil,
+    setAntiRagVisual = nil, setMedusaVisual = nil,
+    setUnwalkVisual = nil, setDarkVisual = nil, setInstaGrab = nil,
+    normalBox = nil, carryBox = nil, laggerBox = nil, lagger2Box = nil,
+    radInput = nil, setLockUI_Visual = nil, setHideOpiumButtons = nil,
+    holdJumpEnabled = false, holdJumpConn = nil, setHoldJumpVisual = nil,
+    autoTPDownEnabled = false, autoTPDownThreshold = 20, autoTPDownConn = nil,
+    autoTPDownSetVisual = nil, autoTPDownFloatVisual = nil,
+    autoTPDownThresholdBox = nil,
+    stealDurationBox = nil,
+    dropBrainrotActive = false,
+    Steal = {
+        AutoStealEnabled = false, StealRadius = 20, StealDuration = 0.9,
+        Data = {}, plotCache = {}, plotCacheTime = {}, cachedPrompts = {}, promptCacheTime = 0,
+        isStealing = false, stealStartTime = nil, lastStealTick = 0,
+    },
+    KB = {
+        DropBrainrot = {kb = Enum.KeyCode.X, gp = Enum.KeyCode.ButtonR2},
+        AutoLeft = {kb = Enum.KeyCode.Z, gp = Enum.KeyCode.DPadLeft},
+        AutoRight = {kb = Enum.KeyCode.C, gp = Enum.KeyCode.DPadRight},
+        AutoBat = {kb = Enum.KeyCode.E, gp = Enum.KeyCode.ButtonY},
+        TPFlor = {kb = Enum.KeyCode.F, gp = Enum.KeyCode.ButtonA},
+        GuiHide = {kb = Enum.KeyCode.LeftControl, gp = Enum.KeyCode.ButtonSelect},
+        SpeedToggle = {kb = Enum.KeyCode.Q, gp = Enum.KeyCode.DPadUp},
+        LaggerToggle = {kb = Enum.KeyCode.R, gp = Enum.KeyCode.DPadDown},
+        AutoTPDown = {kb = Enum.KeyCode.T, gp = nil},
+    },
+    -- ========== SZG AUTOPLAY WAYPOINTS ==========
+    AP = {
+        leftWaypoints = {
+            Vector3.new(-476.85, -6.59, 94.91),
+            Vector3.new(-485.55, -4.53, 100.61),
+            Vector3.new(-475.60, -6.59, 92.80),
+            Vector3.new(-475.26, -6.57, 21.54),
+        },
+        rightWaypoints = {
+            Vector3.new(-475.77, -6.57, 26.76),
+            Vector3.new(-485.85, -4.48, 20.13),
+            Vector3.new(-475.83, -6.59, 26.54),
+            Vector3.new(-476.17, -6.09, 97.73),
+        },
+        -- Keep legacy positions for compatibility
+        L1 = Vector3.new(-476.48, -6.28, 92.73), L2 = Vector3.new(-482.85, -5.03, 93.13),
+        L_FACE = Vector3.new(-482.25, -4.96, 92.09),
+        R1 = Vector3.new(-476.16, -6.52, 25.62), R2 = Vector3.new(-483.06, -5.03, 27.51),
+        R_FACE = Vector3.new(-482.06, -6.93, 35.47),
+    },
+    Conns = {antiRag = nil, anchor = {}, progress = nil},
+    moveConn = nil, speedEnabled = true, h = nil, hrp = nil,
+    lastMoveDir = Vector3.new(0,0,0),
+    MOVE_KEYS = {
+        [Enum.KeyCode.W] = true, [Enum.KeyCode.A] = true,
+        [Enum.KeyCode.S] = true, [Enum.KeyCode.D] = true,
+        [Enum.KeyCode.Up] = true, [Enum.KeyCode.Left] = true,
+        [Enum.KeyCode.Down] = true, [Enum.KeyCode.Right] = true,
+    },
+    IS_TOUCH_DEVICE = UIS.TouchEnabled,
+    IS_MOBILE = UIS.TouchEnabled and not UIS.KeyboardEnabled,
+    CONFIG_FILE = "dahubPC.json",
+    _floatingButtons = {},
+    BAT_HIT_RANGE = 16,
+    autoTPDownCooldownUntil = 0,
+    _holdJumpCooldownUntil = 0,
+    -- SZG Autoplay waypoint tracking
+    waypointIndex = 1,
+    currentPhase = 1,
+    activeWaypoints = nil,
+}
+
+local SWING_COOLDOWN = 0.25
+
+S.ui = function(pcVal, mobVal) return S.IS_MOBILE and mobVal or pcVal end
+S.getActiveSpeed = function()
+    if S.laggerMode == 1 then return S.LS
+    elseif S.laggerMode == 2 then return S.LS2
+    elseif S.speedMode then return S.CS
+    else return S.NS
+    end
+end
+
+local saveConfig
+local updateFloatingButtons
+
+-- Función central para actualizar el botón flotante de Lagger
+local function updateLaggerButtonVisual()
+    local fb = S._floatingButtons
+    if not fb.lagger then return end
+    local text = ""
+    local active = false
+    if S.speedMode then
+        text = "OFF"
+        active = false
+    else
+        if S.laggerMode == 1 then
+            text = "1"
+            active = true
+        elseif S.laggerMode == 2 then
+            text = "2"
+            active = true
+        else
+            text = "OFF"
+            active = false
+        end
+    end
+    if S._setPButtonActive and S._btnBAT then
+        S._setPButtonActive(S._btnBAT, S._bsBAT, S._l1BAT, S._l2BAT, active)
+    end
+end
+
+-- Updated AutoLeft with SZG waypoints logic
+function startAutoLeft()
+    if S.alConn then S.alConn:Disconnect() end
+    S.alPhase = 1
+    S.waypointIndex = 1
+    S.activeWaypoints = S.AP.leftWaypoints
+    S.currentPhase = 1
+    
+    S.alConn = RunService.Heartbeat:Connect(function()
+        if not S.autoLeftEnabled then return end
+        local c = LP.Character; if not c then return end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        
+        local target = S.activeWaypoints[S.waypointIndex]
+        if not target then return end
+        
+        local dist = (target - root.Position).Magnitude
+        local speed = (S.currentPhase <= 2) and S.GoingSpeed or S.StealSpeed
+        
+        if dist < 2.5 then
+            S.waypointIndex = S.waypointIndex + 1
+            if S.waypointIndex > #S.activeWaypoints then
+                hum:Move(Vector3.zero, false)
+                root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+                S.autoLeftEnabled = false
+                if S.alConn then S.alConn:Disconnect(); S.alConn = nil end
+                S.alPhase = 1
+                S.waypointIndex = 1
+                if S.autoLeftSetVisual then S.autoLeftSetVisual(false) end
+                if S._setPButtonActive and S._btnAAL then
+                    S._setPButtonActive(S._btnAAL, S._bsAAL, S._l1AAL, S._l2AAL, false)
+                end
+                task.defer(S.startMovement)
+                return
+            end
+            if S.waypointIndex == 3 then
+                S.currentPhase = 3
+            end
+        else
+            local d = (target - root.Position)
+            local mv = Vector3.new(d.X, 0, d.Z).Unit
+            hum:Move(mv, false)
+            root.AssemblyLinearVelocity = Vector3.new(mv.X * speed, root.AssemblyLinearVelocity.Y, mv.Z * speed)
+        end
+    end)
+end
+
+-- Updated AutoRight with SZG waypoints logic
+function startAutoRight()
+    if S.arConn then S.arConn:Disconnect() end
+    S.arPhase = 1
+    S.waypointIndex = 1
+    S.activeWaypoints = S.AP.rightWaypoints
+    S.currentPhase = 1
+    
+    S.arConn = RunService.Heartbeat:Connect(function()
+        if not S.autoRightEnabled then return end
+        local c = LP.Character; if not c then return end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        
+        local target = S.activeWaypoints[S.waypointIndex]
+        if not target then return end
+        
+        local dist = (target - root.Position).Magnitude
+        local speed = (S.currentPhase <= 2) and S.GoingSpeed or S.StealSpeed
+        
+        if dist < 2.5 then
+            S.waypointIndex = S.waypointIndex + 1
+            if S.waypointIndex > #S.activeWaypoints then
+                hum:Move(Vector3.zero, false)
+                root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+                S.autoRightEnabled = false
+                if S.arConn then S.arConn:Disconnect(); S.arConn = nil end
+                S.arPhase = 1
+                S.waypointIndex = 1
+                if S.autoRightSetVisual then S.autoRightSetVisual(false) end
+                if S._setPButtonActive and S._btnAAR then
+                    S._setPButtonActive(S._btnAAR, S._bsAAR, S._l1AAR, S._l2AAR, false)
+                end
+                task.defer(S.startMovement)
+                return
+            end
+            if S.waypointIndex == 3 then
+                S.currentPhase = 3
+            end
+        else
+            local d = (target - root.Position)
+            local mv = Vector3.new(d.X, 0, d.Z).Unit
+            hum:Move(mv, false)
+            root.AssemblyLinearVelocity = Vector3.new(mv.X * speed, root.AssemblyLinearVelocity.Y, mv.Z * speed)
+        end
+    end)
+end
+
+function stopAutoLeft()
+    if S.alConn then S.alConn:Disconnect(); S.alConn = nil end
+    S.alPhase = 1
+    S.waypointIndex = 1
+    local c = LP.Character
+    if c then
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum then hum:Move(Vector3.zero, false) end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        if root then root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0) end
+    end
+    S.autoLeftEnabled = false
+    if S.autoLeftSetVisual then S.autoLeftSetVisual(false) end
+end
+
+function stopAutoRight()
+    if S.arConn then S.arConn:Disconnect(); S.arConn = nil end
+    S.arPhase = 1
+    S.waypointIndex = 1
+    local c = LP.Character
+    if c then
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum then hum:Move(Vector3.zero, false) end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        if root then root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0) end
+    end
+    S.autoRightEnabled = false
+    if S.autoRightSetVisual then S.autoRightSetVisual(false) end
+end
+
+local function getClosestPlayer()
+    if not S.hrp then return nil, math.huge end
+    local cp, cd = nil, math.huge
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local tr = p.Character:FindFirstChild("HumanoidRootPart")
+            local ph = p.Character:FindFirstChildOfClass("Humanoid")
+            if tr and ph and ph.Health > 0 then
+                local d = (S.hrp.Position - tr.Position).Magnitude
+                if d < cd then cd = d; cp = p end
+            end
+        end
+    end
+    return cp, cd
+end
+
+local function tryHitBat()
+    if S.hittingCooldown then return end
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+
+    S.hittingCooldown = true
+    pcall(function()
+        local c = LP.Character; if not c then return end
+        local tool = nil
+        for _, v in ipairs(c:GetChildren()) do
+            if v:IsA("Tool") then tool = v; break end
+        end
+        if not tool then return end
+        local remote = tool:FindFirstChildOfClass("RemoteEvent")
+        if remote then
+            pcall(function() remote:FireServer() end)
+        else
+            pcall(function() tool:Activate() end)
+        end
+    end)
+    task.delay(SWING_COOLDOWN, function() S.hittingCooldown = false end)
+end
+
+local function findBatTool()
+    local c = LP.Character; if not c then return nil end
+    local bp = LP:FindFirstChildOfClass("Backpack")
+    local SlapList = {"Bat","Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap","Nuclear Slap","Galaxy Slap","Glitched Slap"}
+    for _, ch in ipairs(c:GetChildren()) do
+        if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then
+            return ch
+        end
+    end
+    if bp then
+        for _, ch in ipairs(bp:GetChildren()) do
+            if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then
+                return ch
+            end
+        end
+    end
+    for _, name in ipairs(SlapList) do
+        local t = (c and c:FindFirstChild(name)) or (bp and bp:FindFirstChild(name))
+        if t then return t end
+    end
+    return nil
+end
+
+function startBatAimbot()
+    if S.batAimbotConn then S.batAimbotConn:Disconnect() end
+    S.batAimbotEnabled = true
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local bat = findBatTool()
+    if bat and hum and bat.Parent ~= char then
+        pcall(function() hum:EquipTool(bat) end)
+    end
+
+    if hum then
+        hum.AutoRotate = true
+    end
+
+    local lastTargetPos = nil
+    local lastTargetTime = nil
+    local lastTargetVel = Vector3.new(0,0,0)
+    local lastDirChange = 0
+    local prevErrorY = 0
+
+    S.batAimbotConn = RunService.Heartbeat:Connect(function()
+        if not S.batAimbotEnabled or not LP.Character then return end
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        local targetPlayer, distance = getClosestPlayer()
+        if not targetPlayer then return end
+
+        local targetHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not targetHrp then return end
+
+        if distance <= S.BAT_HIT_RANGE then
+            tryHitBat()
+        end
+    end)
+end
+
+function stopBatAimbot()
+    if S.batAimbotConn then S.batAimbotConn:Disconnect(); S.batAimbotConn = nil end
+    S.batAimbotEnabled = false
+    if S.batAimbotSetVisual then S.batAimbotSetVisual(false) end
+end
+
+function startBatCounter()
+    if S.batCounterConn then S.batCounterConn:Disconnect() end
+    S.batCounterEnabled = true
+    local hitCount = 0
+    local debounceTimer = 0
+    local stateHistory = {}
+
+    S.batCounterConn = RunService.Heartbeat:Connect(function()
+        if not S.batCounterEnabled then return end
+
+        local char = LP.Character
+        if not char then return end
+
+        debounceTimer = debounceTimer - (1 / 60)
+        if debounceTimer < 0 then debounceTimer = 0 end
+    end)
+end
+
+function stopBatCounter()
+    if S.batCounterConn then S.batCounterConn:Disconnect(); S.batCounterConn = nil end
+    S.batCounterEnabled = false
+    if S.setBatCounterVisual then S.setBatCounterVisual(false) end
+end
+
+local function startInfiniteJump()
+    if S.infJumpConn then S.infJumpConn:Disconnect() end
+    S.infJumpEnabled = true
+    S.infJumpConn = UIS.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.Space then
+            local char = LP.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end
+    end)
+end
+
+local function stopInfiniteJump()
+    if S.infJumpConn then S.infJumpConn:Disconnect(); S.infJumpConn = nil end
+    S.infJumpEnabled = false
+end
+
+local function startHoldJump()
+    if S.holdJumpConn then S.holdJumpConn:Disconnect() end
+    S.holdJumpEnabled = true
+    S.holdJumpConn = RunService.Heartbeat:Connect(function()
+        if not S.holdJumpEnabled then return end
+        if not UIS:IsKeyDown(Enum.KeyCode.Space) then return end
+
+        local char = LP.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                local jumpCooldown = 0.2
+                if tick() - S._holdJumpCooldownUntil >= jumpCooldown then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                    S._holdJumpCooldownUntil = tick()
+                end
+            end
+        end
+    end)
+end
+
+local function stopHoldJump()
+    if S.holdJumpConn then S.holdJumpConn:Disconnect(); S.holdJumpConn = nil end
+    S.holdJumpEnabled = false
+end
+
+local medusaSetup = false
+
+function setupMedusaCounter(char)
+    if not S.medusaCounterEnabled then return end
+    if medusaSetup then return end
+    medusaSetup = true
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    local medusaConn = humanoid.StateChanged:Connect(function(oldState, newState)
+        if newState == Enum.HumanoidStateType.Ragdoll then
+            if tick() - S.medusaLastUsed >= S.MEDUSA_COOLDOWN then
+                S.medusaLastUsed = tick()
+                if S.setMedusaVisual then S.setMedusaVisual(true) end
+            end
+        end
+    end)
+    
+    table.insert(S.medusaConns, medusaConn)
+end
+
+local function startAntiRagdoll()
+    if S.Conns.antiRag then S.Conns.antiRag:Disconnect() end
+    S.antiRagdollEnabled = true
+    S.Conns.antiRag = RunService.Heartbeat:Connect(function()
+        local char = LP.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            if humanoid:GetState() == Enum.HumanoidStateType.Ragdoll then
+                humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+        end
+    end)
+end
+
+local function stopAntiRagdoll()
+    if S.Conns.antiRag then S.Conns.antiRag:Disconnect(); S.Conns.antiRag = nil end
+    S.antiRagdollEnabled = false
+end
+
+local function startUnwalk()
+    if S.Conns.unwalk then S.Conns.unwalk:Disconnect() end
+    S.unwalkEnabled = true
+    S.Conns.unwalk = RunService.Heartbeat:Connect(function()
+        local char = LP.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+        end
+    end)
+end
+
+local function stopUnwalk()
+    if S.Conns.unwalk then S.Conns.unwalk:Disconnect(); S.Conns.unwalk = nil end
+    S.unwalkEnabled = false
+end
+
+local function applyFPSBoost()
+    if S.fpsBoostEnabled then
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Texture") or v:IsA("Decal") then
+                pcall(function() v.Transparency = 1 end)
+            elseif v:IsA("Part") then
+                pcall(function() 
+                    if v.Material ~= Enum.Material.Neon then v.Material = Enum.Material.SmoothPlastic end
+                end)
+            end
+        end
+        safeSetfpscap(144)
+    end
+end
+
+local function setUILock(val)
+    S.lockUIEnabled = val
+end
+
+local function startAutoTPDown()
+    if S.autoTPDownConn then S.autoTPDownConn:Disconnect() end
+    S.autoTPDownEnabled = true
+    S.autoTPDownConn = RunService.Heartbeat:Connect(function()
+        if not S.autoTPDownEnabled then return end
+        local char = LP.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root and root.Position.Y < -S.autoTPDownThreshold then
+            root.Position = Vector3.new(root.Position.X, -6.5, root.Position.Z)
+        end
+    end)
+end
+
+local function stopAutoTPDown()
+    if S.autoTPDownConn then S.autoTPDownConn:Disconnect(); S.autoTPDownConn = nil end
+    S.autoTPDownEnabled = false
+end
+
+local function startAutoSteal()
+end
+
+S.setupSpeedBillboard = function(char)
+end
+
+S.restartMovement = function()
+    if S.moveConn then S.moveConn:Disconnect() end
+    S.moveConn = UIS.InputChanged:Connect(function(input)
+        if S.MOVE_KEYS[input.KeyCode] then
+            local moveDir = Vector3.new(0,0,0)
+            if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Up) then moveDir = moveDir + Vector3.zAxis * -1 end
+            if UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.Down) then moveDir = moveDir + Vector3.zAxis end
+            if UIS:IsKeyDown(Enum.KeyCode.A) or UIS:IsKeyDown(Enum.KeyCode.Left) then moveDir = moveDir + Vector3.xAxis * -1 end
+            if UIS:IsKeyDown(Enum.KeyCode.D) or UIS:IsKeyDown(Enum.KeyCode.Right) then moveDir = moveDir + Vector3.xAxis end
+            if moveDir.Magnitude > 0 then moveDir = moveDir.Unit end
+            S.lastMoveDir = moveDir
+            if S.h then S.h:Move(moveDir, false) end
+        end
+    end)
+end
+
+S.startMovement = S.restartMovement
+
+local function toggleAntiRag(val)
+    if val then startAntiRagdoll() else stopAntiRagdoll() end
+end
+
+local function setBatAimbot(val)
+    if val then startBatAimbot() else stopBatAimbot() end
+end
+
+-- CONFIG LOADING AND SAVING
+local ConfigFileName = "SZG_Duels_Config.json"
+
+local function loadConfig()
+    if not safeIsfile(ConfigFileName) then return end
+    local data = safeReadfile(ConfigFileName)
+    if not data then return end
+    local cfg = HS:JSONDecode(data)
+    
+    if cfg.normalSpeed then S.NS = cfg.normalSpeed; end
+    if cfg.carrySpeed then S.CS = cfg.carrySpeed; end
+    if cfg.laggerSpeed then S.LS = cfg.laggerSpeed; end
+    if cfg.laggerSpeed2 then S.LS2 = cfg.laggerSpeed2; end
+    if cfg.goingSpeed then S.GoingSpeed = cfg.goingSpeed; end
+    if cfg.stealSpeed then S.StealSpeed = cfg.stealSpeed; end
+    if cfg.laggerMode then S.laggerMode = cfg.laggerMode end
+
+    if S.laggerMode == 0 then S.laggerMode = 1 end
+
+    local function tryLoadKey(entry, kbName, gpName)
+        if kbName and Enum.KeyCode[kbName] then
+            entry.kb = Enum.KeyCode[kbName]; entry.gp = nil
+        elseif gpName and Enum.KeyCode[gpName] then
+            entry.gp = Enum.KeyCode[gpName]; entry.kb = nil
+        end
+    end
+    if cfg.dropBrainrotKey then tryLoadKey(S.KB.DropBrainrot, cfg.dropBrainrotKey.kb, cfg.dropBrainrotKey.gp) end
+    if cfg.autoLeftKey then tryLoadKey(S.KB.AutoLeft, cfg.autoLeftKey.kb, cfg.autoLeftKey.gp) end
+    if cfg.autoRightKey then tryLoadKey(S.KB.AutoRight, cfg.autoRightKey.kb, cfg.autoRightKey.gp) end
+    if cfg.autoBatKey then tryLoadKey(S.KB.AutoBat, cfg.autoBatKey.kb, cfg.autoBatKey.gp) end
+    if cfg.tpFloorKey then tryLoadKey(S.KB.TPFlor, cfg.tpFloorKey.kb, cfg.tpFloorKey.gp) end
+    if cfg.guiHideKey then tryLoadKey(S.KB.GuiHide, cfg.guiHideKey.kb, cfg.guiHideKey.gp) end
+    if cfg.speedToggleKey then tryLoadKey(S.KB.SpeedToggle, cfg.speedToggleKey.kb, cfg.speedToggleKey.gp) end
+    if cfg.laggerToggleKey then tryLoadKey(S.KB.LaggerToggle, cfg.laggerToggleKey.kb, cfg.laggerToggleKey.gp) end
+    if cfg.autoTPDownKey then tryLoadKey(S.KB.AutoTPDown, cfg.autoTPDownKey.kb, cfg.autoTPDownKey.gp) end
+
+    if cfg.grabRadius then S.Steal.StealRadius = cfg.grabRadius; end
+    if cfg.stealDuration then S.Steal.StealDuration = cfg.stealDuration; end
+    if cfg.autoTPDownThreshold then S.autoTPDownThreshold = cfg.autoTPDownThreshold; end
+
+    if cfg.antiRagdoll then toggleAntiRag(true); end
+    if cfg.autoStealEnabled then S.stealActive = true; startAutoSteal() end
+    if cfg.infiniteJump and not cfg.holdJumpEnabled then S.infJumpEnabled = true; startInfiniteJump(); end
+    if cfg.holdJumpEnabled then S.infJumpEnabled = false; S.holdJumpEnabled = true; startHoldJump(); end
+    if cfg.medusaCounter then S.medusaCounterEnabled = true; setupMedusaCounter(LP.Character); end
+    if cfg.carryMode then S.speedMode = true; S.laggerMode = 0; end
+    if cfg.laggerMode and cfg.laggerMode > 0 and not cfg.carryMode then
+        S.laggerMode = cfg.laggerMode
+    end
+    if cfg.batAimbot then setBatAimbot(true) end
+    if cfg.batCounter then S.batCounterEnabled = true; startBatCounter(); end
+    if cfg.unwalkEnabled then S.unwalkEnabled = true; startUnwalk(); end
+    if cfg.lockUI then S.lockUIEnabled = true; setUILock(true); end
+    if cfg.fpsBoost then S.fpsBoostEnabled = true; applyFPSBoost(); end
+    if cfg.galaxyMode then galaxyOn = true; updateGalaxy(); end
+    if cfg.autoTPDownEnabled then S.autoTPDownEnabled = true; startAutoTPDown(); end
+
+    S.restartMovement()
+end
+
+saveConfig = function()
+    local cfg = {
+        normalSpeed = S.NS,
+        carrySpeed = S.CS,
+        laggerSpeed = S.LS,
+        laggerSpeed2 = S.LS2,
+        goingSpeed = S.GoingSpeed,
+        stealSpeed = S.StealSpeed,
+        laggerMode = S.laggerMode,
+        antiRagdoll = S.antiRagdollEnabled,
+        autoStealEnabled = S.stealActive,
+        infiniteJump = S.infJumpEnabled,
+        holdJumpEnabled = S.holdJumpEnabled,
+        medusaCounter = S.medusaCounterEnabled,
+        carryMode = S.speedMode,
+        batAimbot = S.batAimbotEnabled,
+        batCounter = S.batCounterEnabled,
+        unwalkEnabled = S.unwalkEnabled,
+        lockUI = S.lockUIEnabled,
+        fpsBoost = S.fpsBoostEnabled,
+        galaxyMode = galaxyOn,
+        autoTPDownEnabled = S.autoTPDownEnabled,
+        grabRadius = S.Steal.StealRadius,
+        stealDuration = S.Steal.StealDuration,
+        autoTPDownThreshold = S.autoTPDownThreshold,
+    }
+    safeWritefile(ConfigFileName, HS:JSONEncode(cfg))
+end
+
+task.wait(0.5); loadConfig()
+
+task.spawn(function()
+    task.wait(0.2)
+    if S.antiRagdollEnabled then startAntiRagdoll() end
+    if S.unwalkEnabled then startUnwalk() end
+    if S.medusaCounterEnabled and LP.Character then setupMedusaCounter(LP.Character) end
+    if S.batAimbotEnabled then startBatAimbot() end
+    if S.batCounterEnabled then startBatCounter() end
+    if S.infJumpEnabled then startInfiniteJump() end
+    if S.holdJumpEnabled then startHoldJump() end
+    if S.autoTPDownEnabled then startAutoTPDown() end
+    if S.stealActive then startAutoSteal() end
+    if S.fpsBoostEnabled then applyFPSBoost() end
+    if galaxyOn then updateGalaxy() end
+end)
+
+if LP.Character then task.wait(0.3); S.setupSpeedBillboard(LP.Character) end
+
+LP.CharacterAdded:Connect(function(char)
+    if S.autoLeftEnabled then stopAutoLeft() end
+    if S.autoRightEnabled then stopAutoRight() end
+    if S.batAimbotEnabled then stopBatAimbot() end
+    if S.batCounterEnabled then stopBatCounter() end
+
+    if S.antiRagdollEnabled then task.wait(0.1); startAntiRagdoll() end
+    if S.unwalkEnabled then task.wait(0.5); startUnwalk() end
+    if S.medusaCounterEnabled then setupMedusaCounter(char) end
+    task.wait(0.3)
+    S.h = char:WaitForChild("Humanoid", 5)
+    S.hrp = char:WaitForChild("HumanoidRootPart", 5)
+    if S.h and S.hrp then S.setupSpeedBillboard(char) end
+    if S.autoLeftEnabled then startAutoLeft() end
+    if S.autoRightEnabled then startAutoRight() end
+    if S.batAimbotEnabled then startBatAimbot() end
+    if S.batCounterEnabled then startBatCounter() end
+    S.restartMovement()
+    if S.infJumpEnabled then startInfiniteJump() end
+    if S.holdJumpEnabled then startHoldJump() end
+    if S.autoTPDownEnabled then startAutoTPDown() end
+    if S.stealActive then startAutoSteal() end
+    if S.fpsBoostEnabled then
+        task.wait(0.5); applyFPSBoost()
+        if galaxyOn then task.wait(0.3); updateGalaxy() end
+    else
+        if galaxyOn then updateGalaxy() end
+    end
+end)
+
+if LP.Character then
+    task.spawn(function()
+        local char = LP.Character
+        if S.antiRagdollEnabled then startAntiRagdoll() end
+        if S.unwalkEnabled then startUnwalk() end
+        if S.medusaCounterEnabled then setupMedusaCounter(char) end
+        S.h = char:FindFirstChildOfClass("Humanoid")
+        S.hrp = char:FindFirstChild("HumanoidRootPart")
+        if S.h and S.hrp then S.setupSpeedBillboard(char) end
+        if S.autoLeftEnabled then startAutoLeft() end
+        if S.autoRightEnabled then startAutoRight() end
+        S.restartMovement()
+        if S.infJumpEnabled then startInfiniteJump() end
+        if S.holdJumpEnabled then startHoldJump() end
+        if S.batAimbotEnabled then startBatAimbot() end
+        if S.batCounterEnabled then startBatCounter() end
+        if S.autoTPDownEnabled then startAutoTPDown() end
+        if S.stealActive then startAutoSteal() end
+        if S.fpsBoostEnabled then
+            applyFPSBoost()
+            if galaxyOn then task.wait(0.3); updateGalaxy() end
+        else
+            if galaxyOn then updateGalaxy() end
+        end
+    end)
+end
+
+-- SONGS (imported from Irish Hub)
+local SoundService = game:GetService("SoundService")
+local daActiveSong
+
+local function daPlaySong(id)
+    if daActiveSong then
+        daActiveSong:Stop()
+        daActiveSong:Destroy()
+    end
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://" .. tostring(id)
+    s.Volume = 1
+    s.Looped = true
+    s.Parent = SoundService
+    s:Play()
+    daActiveSong = s
+end
+
+local IrishSongs = {
+    {"Low Cortisol",110919391228823},
+    {"Tuff Song",115853391091360},
+    {"Tuff a$$ song 2",89762852335338},
+    {"Tuff a$$ song 3",103409564066173},
+    {"RIP MY GRANNY",121252909004354},
+    {"Hello Juliet",101816084223643},
+    {"67 Phonk",125476440612900},
+    {"Custom Song",818753792049994}
+}
+
+print("✅ Duels Hub Updated with SZG Waypoints & Speeds")
